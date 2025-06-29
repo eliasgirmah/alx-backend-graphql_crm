@@ -1,11 +1,6 @@
 import graphene
-from .mutations import CreateCustomer, BulkCreateCustomers, CreateProduct, CreateOrder
-
-
 from .types import CustomerType, ProductType, OrderType
-from .mutations import (
-    CreateCustomer, BulkCreateCustomers, CreateProduct, CreateOrder
-)
+from .mutations import CreateCustomer, BulkCreateCustomers, CreateProduct, CreateOrder
 
 class Mutation(graphene.ObjectType):
     create_customer = CreateCustomer.Field()
@@ -26,6 +21,4 @@ class Query(graphene.ObjectType):
         return Product.objects.all()
 
     def resolve_orders(root, info):
-        return Order.objects.select_related("customer").prefetch_related("products").all()
-
-schema = graphene.Schema(query=Query, mutation=Mutation)
+        return Order.objects.all()
