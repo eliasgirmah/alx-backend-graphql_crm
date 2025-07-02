@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from django.core.exceptions import ValidationError as DjangoValidationError
 import graphene
 from .types import CustomerType, ProductType, OrderType
@@ -104,11 +105,23 @@ class CreateOrder(graphene.Mutation):
 # Query class
 
 class Query(graphene.ObjectType):
+=======
+import graphene
+from graphene_django.filter import DjangoFilterConnectionField
+from .types import CustomerType, ProductType, OrderType
+from .mutations import CreateCustomer, BulkCreateCustomers, CreateProduct, CreateOrder
+
+class Query(graphene.ObjectType):
+    hello = graphene.String(default_value="Hello, GraphQL!")
+    
+    # Basic queries returning all records
+>>>>>>> 275468b69b688680d4983880ca426f02ac258e14
     customers = graphene.List(CustomerType)
     products = graphene.List(ProductType)
     orders = graphene.List(OrderType)
 
     def resolve_customers(root, info):
+<<<<<<< HEAD
         return Customer.objects.all()
 
     def resolve_products(root, info):
@@ -121,5 +134,18 @@ class Query(graphene.ObjectType):
 
 class Mutation(graphene.ObjectType):
     create_customer = CreateCustomer.Field()
+=======
+        return CustomerType._meta.model.objects.all()
+
+    def resolve_products(root, info):
+        return ProductType._meta.model.objects.all()
+
+    def resolve_orders(root, info):
+        return OrderType._meta.model.objects.all()
+
+class Mutation(graphene.ObjectType):
+    create_customer = CreateCustomer.Field()
+    bulk_create_customers = BulkCreateCustomers.Field()
+>>>>>>> 275468b69b688680d4983880ca426f02ac258e14
     create_product = CreateProduct.Field()
     create_order = CreateOrder.Field()
