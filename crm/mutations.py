@@ -2,6 +2,7 @@ import re
 import graphene
 from django.db import transaction
 from django.utils.timezone import now
+from django.utils.dateparse import parse_datetime
 from .models import Customer, Product, Order
 from .types import CustomerType, ProductType, OrderType
 
@@ -33,18 +34,24 @@ class CreateCustomer(graphene.Mutation):
 
     customer = graphene.Field(CustomerType)
     message = graphene.String()
+    errors = graphene.List(graphene.String)
 
-    def mutate(self, info, input):
+    @classmethod
+    def mutate(cls, root, info, input):
+        errors = []
         if Customer.objects.filter(email=input.email).exists():
-            raise Exception("Email already exists")
+            errors.append("Email already exists")
         if input.phone and not is_valid_phone(input.phone):
-            raise Exception("Invalid phone format. Use +1234567890 or 123-456-7890")
+            errors.append("Invalid phone format. Use +1234567890 or 123-456-7890")
+        if errors:
+            return CreateCustomer(customer=None, message="Validation failed", errors=errors)
+
         customer = Customer.objects.create(
             name=input.name,
             email=input.email,
             phone=input.phone or ""
         )
-        return CreateCustomer(customer=customer, message="Customer created successfully.")
+        return CreateCustomer(customer=customer, message="Customer created successfully.", errors=None)
 
 class BulkCreateCustomers(graphene.Mutation):
     class Arguments:
@@ -53,7 +60,8 @@ class BulkCreateCustomers(graphene.Mutation):
     customers = graphene.List(CustomerType)
     errors = graphene.List(graphene.String)
 
-    def mutate(self, info, input):
+    @classmethod
+    def mutate(cls, root, info, input):
         created = []
         errors = []
 
@@ -73,52 +81,63 @@ class BulkCreateCustomers(graphene.Mutation):
                 except Exception as e:
                     errors.append(str(e))
 
-        return BulkCreateCustomers(customers=created, errors=errors)
+        return BulkCreateCustomers(customers=created, errors=errors or None)
 
 class CreateProduct(graphene.Mutation):
     class Arguments:
         input = ProductInput(required=True)
 
     product = graphene.Field(ProductType)
+    message = graphene.String()
+    errors = graphene.List(graphene.String)
 
-    def mutate(self, info, input):
+    @classmethod
+    def mutate(cls, root, info, input):
+        errors = []
         if input.price <= 0:
-            raise Exception("Price must be positive")
+            errors.append("Price must be positive")
         if input.stock is not None and input.stock < 0:
-            raise Exception("Stock cannot be negative")
+            errors.append("Stock cannot be negative")
+        if errors:
+            return CreateProduct(product=None, message="Validation failed", errors=errors)
+
         product = Product.objects.create(
             name=input.name,
             price=input.price,
             stock=input.stock or 0
         )
-        return CreateProduct(product=product)
+        return CreateProduct(product=product, message="Product created successfully", errors=None)
 
 class CreateOrder(graphene.Mutation):
     class Arguments:
         input = OrderInput(required=True)
 
     order = graphene.Field(OrderType)
+    message = graphene.String()
+    errors = graphene.List(graphene.String)
 
-    def mutate(self, info, input):
+    @classmethod
+    def mutate(cls, root, info, input):
+        errors = []
+
         try:
             customer = Customer.objects.get(pk=input.customer_id)
         except Customer.DoesNotExist:
-            raise Exception("Invalid customer ID")
+            errors.append("Invalid customer ID")
 
         products = Product.objects.filter(pk__in=input.product_ids)
         if not products.exists():
-            raise Exception("At least one valid product ID is required")
+            errors.append("At least one valid product ID is required")
+
+        if errors:
+            return CreateOrder(order=None, message="Validation failed", errors=errors)
 
         total_amount = sum(p.price for p in products)
         order_date = now()
         if input.order_date:
-            try:
-                from django.utils.dateparse import parse_datetime
-                parsed_date = parse_datetime(input.order_date)
-                if parsed_date:
-                    order_date = parsed_date
-            except Exception:
-                pass  # ignore and use now()
+            parsed_date = parse_datetime(input.order_date)
+            if parsed_date:
+                order_date = parsed_date
 
         order = Order.objects.create(
             customer=customer,
@@ -126,4 +145,4 @@ class CreateOrder(graphene.Mutation):
             order_date=order_date
         )
         order.products.set(products)
-        return CreateOrder(order=order)
+        return CreateOrder(order=order, message="Order created successfully", errors=None)
